@@ -19,8 +19,9 @@
 use libc::{c_char, c_int, c_void};
 use nix::errno::Errno::{ENOENT, ENOSYS};
 use parking_lot::Mutex;
+use std::cell::UnsafeCell;
 use std::ffi::{CStr, CString, OsStr};
-use std::mem::size_of;
+use std::mem::{size_of, transmute};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::io::{FromRawFd, RawFd};
 use std::path::{Path, PathBuf};
@@ -62,6 +63,8 @@ pub struct Request {
 #[cfg(target_os = "linux")]
 pub fn new_statvfs() -> statvfs {
     statvfs {
+        // idk
+        f_type: 0,
         // Filesystem block size
         f_bsize: 0,
         // Fragment size
@@ -84,7 +87,7 @@ pub fn new_statvfs() -> statvfs {
         f_flag: 0,
         // Maximum filename length
         f_namemax: 0,
-        __f_spare: [0; 6usize],
+        __f_spare: [0; 5usize],
     }
 }
 
@@ -867,8 +870,8 @@ extern "C" fn read(
     );
 
     let buf = unsafe {
-        let tmp_slice = std::slice::from_raw_parts(arg2, arg3);
-        &mut *(tmp_slice as *const _ as *mut [u8])
+        let tmp_slice = std::slice::from_raw_parts_mut(arg2, arg3);
+        &mut *(tmp_slice as *mut [i8] as *mut [u8])
     };
 
     match ops.read(&req, &name, buf, arg4, arg5) {
@@ -1422,6 +1425,7 @@ impl Default for FuseOperations {
             write_buf: None,
 
             _bitfield_1: Default::default(),
+            _bitfield_align_1: Default::default()
         };
 
         #[cfg(target_os = "macos")]
